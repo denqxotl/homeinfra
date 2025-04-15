@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docmost
+  namespace: denqxotl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docmost
+  template:
+    metadata:
+      labels:
+        app: docmost
+    spec:
+      initContainers:
+        - name: init-create-db
+          image: postgres:15
+          env:
+            - name: PGPASSWORD
+              value: password
+          command:
+            [
+              "sh",
+              "-c",
+              "psql -h postgres -U denqxotl -d postgres -tc \"SELECT 1 FROM pg_database WHERE datname = 'docmost'\" | grep -q 1 || psql -h postgres -U denqxotl -d postgres -c \"CREATE DATABASE docmost\""
+            ]
+      containers:
+        - name: docmost
+          image: docmost/docmost:latest
+          env:
+            - name: DATABASE_URL
+              value: "postgres://denqxotl:password@postgres:5432/docmost"
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: APP_SECRET
+              value: "c4be94db753d4fd944b7a0f059825e2bd3f76c9360ad7d64a7ff1921af437568"  # Make sure this is at least 32 characters long
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 200m
+              memory: 512Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docmost
+  namespace: denqxotl
+spec:
+  type: NodePort
+  selector:
+    app: docmost
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+      nodePort: 30010  # Change to the port you prefer
