@@ -29,12 +29,14 @@ spec:
         - name: docmost
           image: docmost/docmost:latest
           env:
+            - name: APP_URL
+              value: "http://wiki.rp1"
             - name: DATABASE_URL
               value: "postgres://denqxotl:password@postgres:5432/docmost"
             - name: REDIS_URL
               value: "redis://redis:6379"
             - name: APP_SECRET
-              value: "c4be94db753d4fd944b7a0f059825e2bd3f76c9360ad7d64a7ff1921af437568"  # Make sure this is at least 32 characters long
+              value: "c4be94db753d4fd944b7a0f059825e2bd3f76c9360ad7d64a7ff1921af437568"
           ports:
             - containerPort: 3000
           resources:
@@ -52,11 +54,43 @@ metadata:
   name: docmost
   namespace: denqxotl
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: docmost
   ports:
     - name: http
       port: 80
       targetPort: 3000
-      nodePort: 30010  # Change to the port you prefer
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: replace-assets-path
+  namespace: denqxotl
+spec:
+  replacePathRegex:
+    regex: "^/assets/(.*)"
+    replacement: "/assets/${1}"
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: docmost-ingress
+  namespace: denqxotl
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: denqxotl-replace-assets-path@kubernetescrd
+spec:
+  rules:
+    - host: wiki.rp1
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: docmost
+                port:
+                  number: 80
